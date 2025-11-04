@@ -22,8 +22,8 @@ A FastAPI backend for a messenger app with JWT auth, user search, chat previews,
    docker compose up --build
    ```
 3. Open docs:
-   - Swagger UI: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+   - Swagger UI: http://localhost:8085/docs
+   - ReDoc: http://localhost:8085/redoc
 
 ## Production hosting with Caddy (TLS on chat.salut.uno)
 
@@ -77,4 +77,4 @@ requirements.txt
 ## Notes
 
 - For production, set a strong `JWT_SECRET` and `DEV=false`.
-- WebSocket URL: `ws://localhost:8000/ws/chats/{chat_id}?token=YOUR_JWT`.
+- WebSocket URL: `ws://localhost:8085/ws/chats/{chat_id}?token=YOUR_JWT`.
