@@ -126,8 +126,8 @@ async def get_chat(
     chat_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
-    limit: Annotated[int, Query(20, ge=1, le=100)] = 20,
-    offset: Annotated[int, Query(0, ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ChatWithMessagesPage:
     # Ensure membership
     member = await db.execute(
