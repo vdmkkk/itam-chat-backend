@@ -17,7 +17,7 @@ from app.models import user, chat, message  # noqa: F401  # ensure models are im
 config = context.config
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.database_url())
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

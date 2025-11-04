@@ -21,9 +21,20 @@ class Settings(BaseSettings):
     JWT_EXPIRES_MINUTES: int = 60
 
     # Database
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:postgres@db:5432/itam_chat"
-    )
+    DATABASE_URL: str | None = None
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "itam_chat"
+    POSTGRES_HOST: str = "db"
+    POSTGRES_PORT: int = 5432
+
+    def database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+            f"{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
 
 
 @lru_cache
