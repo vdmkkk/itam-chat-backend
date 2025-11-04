@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, Token
 from app.schemas.user import UserCreate, UserPublic
+from fastapi.security import OAuth2PasswordRequestForm
 
 
 router = APIRouter(prefix="", tags=["Auth"])
@@ -60,6 +61,30 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
     )
     user = q.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    token = create_access_token(subject=str(user.id))
+    return Token(access_token=token)
+
+
+@router.post(
+    "/token",
+    response_model=Token,
+    summary="OAuth2 Password Grant (Swagger Authorize)",
+    description=(
+        "Use this endpoint for Swagger's Authorize flow. Provide username (or email) and password. "
+        "Returns a Bearer JWT."
+    ),
+)
+async def login_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+) -> Token:
+    q = await db.execute(
+        select(User).where(or_(User.email == form_data.username, User.username == form_data.username))
+    )
+    user = q.scalar_one_or_none()
+    if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     token = create_access_token(subject=str(user.id))
