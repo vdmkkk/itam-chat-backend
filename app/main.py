@@ -1,0 +1,37 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(
+    title="ITAM Chat Backend",
+    version="0.1.0",
+    description=(
+        "Backend for a messenger app. Provides JWT auth, user search, chats with previews, "
+        "chat contents with pagination, and real-time messaging via WebSockets."
+    ),
+)
+
+# CORS (adjust origins in production)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+from app.routers.auth import router as auth_router
+from app.routers.search import router as search_router
+from app.routers.chats import router as chats_router
+from app.routers.ws import router as ws_router
+
+app.include_router(auth_router)
+app.include_router(search_router)
+app.include_router(chats_router)
+app.include_router(ws_router)
+
+
+@app.get("/health", tags=["Health"], summary="Health check")
+async def health() -> dict:
+    return {"status": "ok"}
+
+
