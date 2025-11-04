@@ -26,7 +26,7 @@ class MessageOut(BaseModel):
     text_content: Optional[str] = None
     image_content: Optional[str] = None
     created_at: datetime
-    seen_by: List[MessageSeenOut] = []
+    seen_by: List[MessageSeenOut] = Field(default_factory=list)
 
 
 class LastMessagePreview(BaseModel):
