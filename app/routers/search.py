@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import PaginationParams
@@ -44,8 +44,8 @@ async def search_users(
 
     # Prioritize: exact username match > prefix username match > others
     ordering = (
-        func.case((func.lower(User.username) == func.lower(query), 0), else_=1),
-        func.case((func.lower(User.username).like(func.lower(like)), 0), else_=1),
+        case((func.lower(User.username) == func.lower(query), 0), else_=1),
+        case((func.lower(User.username).like(func.lower(like)), 0), else_=1),
         func.lower(User.username),
         func.lower(User.first_name),
         func.lower(User.last_name),
