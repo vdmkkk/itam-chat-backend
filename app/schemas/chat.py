@@ -35,3 +35,9 @@ class ChatWithMessagesPage(BaseModel):
     offset: int
 
 
+class ChatCreate(BaseModel):
+    user_ids: list[uuid.UUID]
+    name: Optional[str] = None
+    avatar: Optional[str] = None
+
+

@@ -12,7 +12,7 @@ from app.deps import get_current_user
 from app.models.chat import Chat, ChatUser
 from app.models.message import Message, MessageSeen
 from app.models.user import User
-from app.schemas.chat import ChatDetail, ChatPreview, ChatWithMessagesPage
+from app.schemas.chat import ChatDetail, ChatPreview, ChatWithMessagesPage, ChatCreate
 from app.schemas.common import Page
 from app.schemas.message import LastMessagePreview, MessageCreate, MessageOut
 from app.schemas.user import UserPublic
@@ -63,7 +63,7 @@ async def list_chats(
         select(Chat)
         .where(Chat.id.in_(select(member_chats_sub.c.id)))
         .join(latest_per_chat, Chat.id == latest_per_chat.c.chat_id, isouter=True)
-        .order_by(desc(latest_per_chat.c.max_created.nulls_last()))
+        .order_by(latest_per_chat.c.max_created.desc().nullslast())
         .offset(pagination.offset)
         .limit(pagination.limit)
     )
@@ -114,6 +114,65 @@ async def list_chats(
         )
 
     return Page[ChatPreview](items=items, total=total, limit=pagination.limit, offset=pagination.offset)
+
+
+@router.post(
+    "",
+    response_model=ChatDetail,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a chat (direct or group)",
+    description=(
+        "Create a direct chat with another user or a group chat when providing 2+ other users or a name."
+    ),
+)
+async def create_chat(
+    payload: ChatCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> ChatDetail:
+    # Ensure creator is included
+    participant_ids = {current_user.id, *payload.user_ids}
+    if len(participant_ids) < 2:
+        raise HTTPException(status_code=400, detail="At least 1 other user is required")
+
+    # Verify users exist
+    users_res = await db.execute(select(User).where(User.id.in_(list(participant_ids))))
+    users_map = {u.id: u for u in users_res.scalars().all()}
+    missing = participant_ids - set(users_map.keys())
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Users not found: {', '.join(str(m) for m in missing)}")
+
+    is_group = bool(payload.name) or len(participant_ids) > 2
+
+    # For direct chat, prevent duplicates (same pair)
+    if not is_group and len(participant_ids) == 2:
+        ids = list(participant_ids)
+        sub = (
+            select(ChatUser.chat_id)
+            .where(ChatUser.user_id.in_(ids))
+            .group_by(ChatUser.chat_id)
+            .having(func.count(func.distinct(ChatUser.user_id)) == 2)
+        )
+        existing_q = select(Chat).where(Chat.is_group.is_(False), Chat.id.in_(sub))
+        existing_res = await db.execute(existing_q)
+        existing = existing_res.scalar_one_or_none()
+        if existing:
+            # Return existing chat detail
+            members = [UserPublic.model_validate(users_map[pid]) for pid in participant_ids]
+            return ChatDetail(id=existing.id, is_group=False, name=None, avatar=None, users=members)
+
+    chat = Chat(is_group=is_group, name=payload.name if is_group else None, avatar=payload.avatar if is_group else None)
+    db.add(chat)
+    await db.flush()
+
+    # Add members
+    for uid in participant_ids:
+        db.add(ChatUser(chat_id=chat.id, user_id=uid))
+
+    await db.commit()
+
+    members = [UserPublic.model_validate(users_map[pid]) for pid in participant_ids]
+    return ChatDetail(id=chat.id, is_group=is_group, name=chat.name, avatar=chat.avatar, users=members)
 
 
 @router.get(
