@@ -7,6 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Ensure Alembic can import the app package when executed from /app/alembic
+ENV PYTHONPATH=/app
+
 # System deps (openssl is required for jose, curl for healthchecks/logs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
