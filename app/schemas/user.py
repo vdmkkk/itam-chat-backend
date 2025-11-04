@@ -6,12 +6,12 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
-    email: EmailStr = Field(examples=["jane@example.com"])
-    username: str = Field(min_length=3, max_length=50, examples=["jane_doe"])
-    password: str = Field(min_length=8, max_length=256, examples=["StrongPassword123!"])
-    first_name: Optional[str] = Field(default=None, examples=["Jane"])
-    last_name: Optional[str] = Field(default=None, examples=["Doe"])
-    avatar: Optional[str] = Field(default=None, examples=["https://example.com/avatar.jpg"])
+    email: EmailStr = Field(json_schema_extra={"example": "jane@example.com"})
+    username: str = Field(min_length=3, max_length=50, json_schema_extra={"example": "jane_doe"})
+    password: str = Field(min_length=8, max_length=256, json_schema_extra={"example": "StrongPassword123!"})
+    first_name: Optional[str] = Field(default=None, json_schema_extra={"example": "Jane"})
+    last_name: Optional[str] = Field(default=None, json_schema_extra={"example": "Doe"})
+    avatar: Optional[str] = Field(default=None, json_schema_extra={"example": "https://example.com/avatar.jpg"})
 
 
 class UserPublic(BaseModel):

@@ -13,8 +13,8 @@ class MessageSeenOut(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    text_content: Optional[str] = Field(default=None, max_length=4000, examples=["Hello!"])
-    image_content: Optional[str] = Field(default=None, examples=["https://example.com/image.png"])
+    text_content: Optional[str] = Field(default=None, max_length=4000, json_schema_extra={"example": "Hello!"})
+    image_content: Optional[str] = Field(default=None, json_schema_extra={"example": "https://example.com/image.png"})
 
 
 class MessageOut(BaseModel):

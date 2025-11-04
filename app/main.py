@@ -8,6 +8,7 @@ app = FastAPI(
         "Backend for a messenger app. Provides JWT auth, user search, chats with previews, "
         "chat contents with pagination, and real-time messaging via WebSockets."
     ),
+    openapi_version="3.0.3",
 )
 
 # CORS (adjust origins in production)
