@@ -24,11 +24,13 @@ from app.routers.auth import router as auth_router
 from app.routers.search import router as search_router
 from app.routers.chats import router as chats_router
 from app.routers.ws import router as ws_router
+from app.routers.asyncapi_docs import router as asyncapi_router
 
 app.include_router(auth_router)
 app.include_router(search_router)
 app.include_router(chats_router)
 app.include_router(ws_router)
+app.include_router(asyncapi_router)
 
 
 @app.get("/health", tags=["Health"], summary="Health check")

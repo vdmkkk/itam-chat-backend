@@ -1,0 +1,164 @@
+asyncapi: '2.6.0'
+info:
+  title: ITAM Chat WebSocket API
+  version: '0.1.0'
+  description: |
+    Single-connection WebSocket for all chats. Authenticate with JWT via `?token=YOUR_JWT` query.
+    You can send messages to any chat you are a member of and receive real-time updates across all chats.
+servers:
+  dev:
+    url: ws://localhost:8085/ws
+    protocol: ws
+    description: Local development
+  prod:
+    url: wss://chat.salut.uno/ws
+    protocol: wss
+    description: Production
+defaultContentType: application/json
+channels:
+  /ws:
+    description: Single WebSocket endpoint for all chat events.
+    subscribe:
+      summary: Server → Client events
+      message:
+        $ref: '#/components/messages/ServerEvent'
+    publish:
+      summary: Client → Server events
+      message:
+        $ref: '#/components/messages/ClientEvent'
+components:
+  messages:
+    ClientEvent:
+      name: ClientEvent
+      title: Client → Server Event
+      payload:
+        oneOf:
+          - $ref: '#/components/schemas/ClientMessage'
+          - $ref: '#/components/schemas/ClientSeen'
+          - $ref: '#/components/schemas/ClientSubscribe'
+          - $ref: '#/components/schemas/ClientUnsubscribe'
+          - $ref: '#/components/schemas/ClientPing'
+    ServerEvent:
+      name: ServerEvent
+      title: Server → Client Event
+      payload:
+        oneOf:
+          - $ref: '#/components/schemas/ServerMessage'
+          - $ref: '#/components/schemas/ServerSeen'
+          - $ref: '#/components/schemas/ServerPong'
+          - $ref: '#/components/schemas/ServerError'
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+      example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+    ISODateTime:
+      type: string
+      format: date-time
+      example: '2025-01-01T12:00:00Z'
+    MessageOut:
+      type: object
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        chat_id: { $ref: '#/components/schemas/UUID' }
+        from_user_id: { $ref: '#/components/schemas/UUID' }
+        text_content:
+          type: [string, 'null']
+        image_content:
+          type: [string, 'null']
+        created_at: { $ref: '#/components/schemas/ISODateTime' }
+        seen_by:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { $ref: '#/components/schemas/UUID' }
+              seen_at: { $ref: '#/components/schemas/ISODateTime' }
+    # Client → Server
+    ClientMessage:
+      type: object
+      required: [type, chat_id]
+      properties:
+        type:
+          type: string
+          enum: ['message']
+        chat_id: { $ref: '#/components/schemas/UUID' }
+        text_content:
+          type: [string, 'null']
+        image_content:
+          type: [string, 'null']
+    ClientSeen:
+      type: object
+      required: [type, chat_id, message_ids]
+      properties:
+        type:
+          type: string
+          enum: ['seen']
+        chat_id: { $ref: '#/components/schemas/UUID' }
+        message_ids:
+          type: array
+          items: { $ref: '#/components/schemas/UUID' }
+    ClientSubscribe:
+      type: object
+      required: [type, chat_id]
+      properties:
+        type:
+          type: string
+          enum: ['subscribe']
+        chat_id: { $ref: '#/components/schemas/UUID' }
+    ClientUnsubscribe:
+      type: object
+      required: [type, chat_id]
+      properties:
+        type:
+          type: string
+          enum: ['unsubscribe']
+        chat_id: { $ref: '#/components/schemas/UUID' }
+    ClientPing:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: ['ping']
+    # Server → Client
+    ServerMessage:
+      type: object
+      required: [type, chat_id, message]
+      properties:
+        type:
+          type: string
+          enum: ['message']
+        chat_id: { $ref: '#/components/schemas/UUID' }
+        message:
+          $ref: '#/components/schemas/MessageOut'
+    ServerSeen:
+      type: object
+      required: [type, chat_id, user_id, message_ids]
+      properties:
+        type:
+          type: string
+          enum: ['seen']
+        chat_id: { $ref: '#/components/schemas/UUID' }
+        user_id: { $ref: '#/components/schemas/UUID' }
+        message_ids:
+          type: array
+          items: { $ref: '#/components/schemas/UUID' }
+    ServerPong:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: ['pong']
+    ServerError:
+      type: object
+      required: [type, error]
+      properties:
+        type:
+          type: string
+          enum: ['error']
+        error:
+          type: string
+
+

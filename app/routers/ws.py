@@ -21,8 +21,14 @@ class ChatConnectionManager:
     def __init__(self) -> None:
         self.chat_connections: dict[uuid.UUID, set[WebSocket]] = {}
 
-    async def connect(self, chat_id: uuid.UUID, websocket: WebSocket) -> None:
+    async def accept(self, websocket: WebSocket) -> None:
         await websocket.accept()
+
+    async def connect(self, chat_id: uuid.UUID, websocket: WebSocket) -> None:
+        await self.accept(websocket)
+        self.subscribe(chat_id, websocket)
+
+    def subscribe(self, chat_id: uuid.UUID, websocket: WebSocket) -> None:
         self.chat_connections.setdefault(chat_id, set()).add(websocket)
 
     def disconnect(self, chat_id: uuid.UUID, websocket: WebSocket) -> None:
@@ -31,6 +37,13 @@ class ChatConnectionManager:
             conns.remove(websocket)
             if not conns:
                 self.chat_connections.pop(chat_id, None)
+
+    def unsubscribe_all(self, websocket: WebSocket) -> None:
+        for chat_id, conns in list(self.chat_connections.items()):
+            if websocket in conns:
+                conns.remove(websocket)
+                if not conns:
+                    self.chat_connections.pop(chat_id, None)
 
     async def broadcast(self, chat_id: uuid.UUID, message: dict[str, Any]) -> None:
         data = json.dumps(message, default=str)
@@ -117,12 +130,117 @@ async def ws_chat(
                 except Exception:
                     # Unique constraint violations are okay (already seen)
                     await db.rollback()
-                await manager.broadcast(chat_id, {"type": "seen", "user_id": str(user_id), "message_ids": [str(i) for i in ids]})
+                await manager.broadcast(chat_id, {"type": "seen", "chat_id": str(chat_id), "user_id": str(user_id), "message_ids": [str(i) for i in ids]})
             elif event_type == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
             else:
                 await websocket.send_text(json.dumps({"type": "error", "error": "Unknown event type"}))
     except WebSocketDisconnect:
         manager.disconnect(chat_id, websocket)
+
+
+@router.websocket("")
+async def ws_all(
+    websocket: WebSocket,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    # Authenticate once
+    payload = await _authenticate_ws(websocket)
+    user_sub = payload.get("sub")
+    try:
+        user_id = uuid.UUID(user_sub)
+    except Exception:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # Accept connection
+    await manager.accept(websocket)
+
+    # Subscribe to all current chats of the user
+    res = await db.execute(select(ChatUser.chat_id).where(ChatUser.user_id == user_id))
+    chat_ids = [row[0] for row in res.all()]
+    for cid in chat_ids:
+        manager.subscribe(cid, websocket)
+
+    try:
+        while True:
+            text = await websocket.receive_text()
+            try:
+                data = json.loads(text)
+            except Exception:
+                await websocket.send_text(json.dumps({"type": "error", "error": "Invalid JSON"}))
+                continue
+
+            event_type = data.get("type")
+            if event_type == "message":
+                # Require chat_id
+                try:
+                    chat_id = uuid.UUID(str(data.get("chat_id")))
+                except Exception:
+                    await websocket.send_text(json.dumps({"type": "error", "error": "chat_id is required"}))
+                    continue
+                # Ensure membership
+                member = await db.execute(select(ChatUser).where(ChatUser.chat_id == chat_id, ChatUser.user_id == user_id))
+                if not member.scalar_one_or_none():
+                    await websocket.send_text(json.dumps({"type": "error", "error": "Not a member of chat"}))
+                    continue
+                msg_in = MessageCreate(**{k: data.get(k) for k in ("text_content", "image_content")})
+                if not msg_in.text_content and not msg_in.image_content:
+                    await websocket.send_text(json.dumps({"type": "error", "error": "text_content or image_content required"}))
+                    continue
+                msg = Message(chat_id=chat_id, from_user_id=user_id, text_content=msg_in.text_content, image_content=msg_in.image_content)
+                db.add(msg)
+                await db.commit()
+                await db.refresh(msg)
+                out = MessageOut.model_validate(msg)
+                await manager.broadcast(chat_id, {"type": "message", "chat_id": str(chat_id), "message": out.model_dump(mode="json")})
+            elif event_type == "seen":
+                try:
+                    chat_id = uuid.UUID(str(data.get("chat_id")))
+                except Exception:
+                    await websocket.send_text(json.dumps({"type": "error", "error": "chat_id is required"}))
+                    continue
+                member = await db.execute(select(ChatUser).where(ChatUser.chat_id == chat_id, ChatUser.user_id == user_id))
+                if not member.scalar_one_or_none():
+                    await websocket.send_text(json.dumps({"type": "error", "error": "Not a member of chat"}))
+                    continue
+                ids = data.get("message_ids") or []
+                for mid in ids:
+                    try:
+                        m_uuid = uuid.UUID(str(mid))
+                    except Exception:
+                        continue
+                    db.add(MessageSeen(message_id=m_uuid, user_id=user_id))
+                try:
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                await manager.broadcast(chat_id, {"type": "seen", "chat_id": str(chat_id), "user_id": str(user_id), "message_ids": [str(i) for i in ids]})
+            elif event_type == "subscribe":
+                try:
+                    chat_id = uuid.UUID(str(data.get("chat_id")))
+                except Exception:
+                    await websocket.send_text(json.dumps({"type": "error", "error": "chat_id is required"}))
+                    continue
+                member = await db.execute(select(ChatUser).where(ChatUser.chat_id == chat_id, ChatUser.user_id == user_id))
+                if not member.scalar_one_or_none():
+                    await websocket.send_text(json.dumps({"type": "error", "error": "Not a member of chat"}))
+                    continue
+                manager.subscribe(chat_id, websocket)
+                await websocket.send_text(json.dumps({"type": "subscribed", "chat_id": str(chat_id)}))
+            elif event_type == "unsubscribe":
+                try:
+                    chat_id = uuid.UUID(str(data.get("chat_id")))
+                except Exception:
+                    await websocket.send_text(json.dumps({"type": "error", "error": "chat_id is required"}))
+                    continue
+                manager.disconnect(chat_id, websocket)
+                await websocket.send_text(json.dumps({"type": "unsubscribed", "chat_id": str(chat_id)}))
+            elif event_type == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+            else:
+                await websocket.send_text(json.dumps({"type": "error", "error": "Unknown event type"}))
+    except WebSocketDisconnect:
+        manager.unsubscribe_all(websocket)
 
 
