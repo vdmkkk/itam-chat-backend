@@ -20,10 +20,12 @@ channels:
     description: Single WebSocket endpoint for all chat events.
     subscribe:
       summary: Server → Client events
+      operationId: onServerEvent
       message:
         $ref: '#/components/messages/ServerEvent'
     publish:
       summary: Client → Server events
+      operationId: sendClientEvent
       message:
         $ref: '#/components/messages/ClientEvent'
 components:
