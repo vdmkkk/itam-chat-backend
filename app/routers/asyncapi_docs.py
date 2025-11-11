@@ -17,7 +17,8 @@ async def get_asyncapi_yaml() -> FileResponse:
 @router.get("/asyncapi", summary="AsyncAPI UI", include_in_schema=False)
 async def asyncapi_ui(request: Request) -> HTMLResponse:
     yaml_url = str(request.url_for("get_asyncapi_yaml"))
-    studio = f"https://studio.asyncapi.com/?load={quote(yaml_url, safe='')}"
+    # AsyncAPI Studio expects ?url= for external spec
+    studio = f"https://studio.asyncapi.com/?url={quote(yaml_url, safe='')}"
     html = f"""
 <!doctype html>
 <html>
