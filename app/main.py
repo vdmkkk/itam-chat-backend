@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 
 app = FastAPI(
     title="ITAM Chat Backend",
@@ -10,6 +11,9 @@ app = FastAPI(
     ),
     openapi_version="3.0.3",
 )
+
+# Respect X-Forwarded-* from Caddy to get correct scheme/host for URL generation
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # CORS (adjust origins in production)
 app.add_middleware(
